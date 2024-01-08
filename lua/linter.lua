@@ -5,11 +5,13 @@ local M = {}
 ---@class PluginOptions
 ---@field auto_open? boolean
 ---@field list? ListOptions
+---@field debug? boolean
 
 ---@type PluginOptions
 local default_options = {
 	auto_open = true,
 	list = "quickfix",
+	debug = false,
 }
 
 ---@param opts PluginOptions
@@ -31,15 +33,29 @@ M.setup = function(opts)
 					local workspaceRoot =
 						vim.lsp.get_active_clients({ bufnr = 0, name = "tsserver" })[1].config.root_dir
 
-					-- since tsc gives relative paths, we need to change the cwd to the workspace root
+					-- since tsc gives relative paths from tsconfig.json we temporarily change the cwd to the workspace root
+					-- this is to support monorepos where there might be more than one tsconfig.json
+					-- and the tsconfig.json might be in a subdirectory (ie ./applications/app1/tsconfig.json)
 					local oldCwd = vim.fn.getcwd()
 					vim.fn.chdir(workspaceRoot)
 
+					if options.debug then
+						print("oldCwd: " .. oldCwd)
+						print("workspaceRoot: " .. workspaceRoot)
+						print("cwd after chdir: " .. vim.fn.getcwd())
+					end
+
+					-- using npx to use the project's typescript version and not depend on a global install
 					vim.api.nvim_command(":compiler tsc | setlocal makeprg=npx\\ tsc")
 					vim.api.nvim_command(":make")
 
-					-- change back to old cwd
+					-- change back to original cwd
 					vim.fn.chdir(oldCwd)
+					if options.debug then
+						print("oldCwd: " .. oldCwd)
+						print("workspaceRoot: " .. workspaceRoot)
+						print("cwd after changing back: " .. vim.fn.getcwd())
+					end
 
 					if not options.auto_open then
 						return
