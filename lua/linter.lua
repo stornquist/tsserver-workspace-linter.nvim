@@ -65,7 +65,10 @@ M.setup = function(opts)
 						require("trouble").open({ mode = "quickfix" })
 					end
 				end, { nargs = 0 })
-				original(client, bufnr)
+
+				if original then
+					original(client, bufnr)
+				end
 			end,
 		})
 	end
