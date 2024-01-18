@@ -30,18 +30,37 @@ M.setup = function(opts)
 			on_attach = function(client, bufnr)
 				local original = lspconfig["tsserver"].manager.config.capabilities.on_attach
 				vim.api.nvim_buf_create_user_command(0, "Tsc", function()
-					local workspaceRoot =
-						vim.lsp.get_active_clients({ bufnr = 0, name = "tsserver" })[1].config.root_dir
+					-- local workspace =
+					-- 	vim.lsp.get_active_clients({ bufnr = 0, name = "tsserver" })[1].config.root_dir
+					local workspace = ""
+					local eslintFiles = {
+						"tsconfig.json",
+					}
+					for _, file in ipairs(eslintFiles) do
+						local res = vim.fn.findfile(file, ".;")
+						if #res > 0 then
+							if options.debug then
+								print("Found tsconfig.json: " .. res)
+							end
+							workspace = vim.fn.getcwd() .. "/" .. res:gsub("/tsconfig.json", "")
+							break
+						end
+					end
+
+					if not workspace then
+						print("No tsconfig.json found")
+						return
+					end
 
 					-- since tsc gives relative paths from tsconfig.json we temporarily change the cwd to the workspace root
 					-- this is to support monorepos where there might be more than one tsconfig.json
 					-- and the tsconfig.json might be in a subdirectory (ie ./applications/app1/tsconfig.json)
 					local oldCwd = vim.fn.getcwd()
-					vim.fn.chdir(workspaceRoot)
+					vim.fn.chdir(workspace)
 
 					if options.debug then
 						print("oldCwd: " .. oldCwd)
-						print("workspaceRoot: " .. workspaceRoot)
+						print("workspaceRoot: " .. workspace)
 						print("cwd after chdir: " .. vim.fn.getcwd())
 					end
 
@@ -53,7 +72,7 @@ M.setup = function(opts)
 					vim.fn.chdir(oldCwd)
 					if options.debug then
 						print("oldCwd: " .. oldCwd)
-						print("workspaceRoot: " .. workspaceRoot)
+						print("workspaceRoot: " .. workspace)
 						print("cwd after changing back: " .. vim.fn.getcwd())
 					end
 
