@@ -1,4 +1,4 @@
-# tsserer-workspace-linter.nvim
+# tsserver-workspace-linter.nvim
 
 Enables the `:Tsc` command in buffers where tsserver has attached.
 
