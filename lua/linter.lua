@@ -16,97 +16,87 @@ local default_options = {
 
 ---@param opts PluginOptions
 M.setup = function(opts)
-	local status, lspconfig = pcall(require, "lspconfig")
-	if not status then
-		print("lspconfig not found")
-	end
+	local plugin_options = vim.tbl_deep_extend("force", default_options, opts or {})
+	local original_attach = vim.lsp.config["ts_ls"].on_attach
 
-	if not lspconfig["tsserver"] then
-		print("make sure tsserver is installed and setup before loading tsserver-workspace-lint")
-	else
-		local options = vim.tbl_deep_extend("force", default_options, opts or {})
+	vim.lsp.config("ts_ls", {
+		on_attach = function(client, bufnr)
+			vim.api.nvim_buf_create_user_command(0, "Tsc", function()
+				local workspace = ""
+				local rootFiles = {
+					"tsconfig.json",
+				}
 
-		lspconfig["tsserver"].setup({
-			on_attach = function(client, bufnr)
-				local original = lspconfig["tsserver"].manager.config.capabilities.on_attach
-				vim.api.nvim_buf_create_user_command(0, "Tsc", function()
-					-- local workspace =
-					-- 	vim.lsp.get_active_clients({ bufnr = 0, name = "tsserver" })[1].config.root_dir
-					local workspace = ""
-					local eslintFiles = {
-						"tsconfig.json",
-					}
-					for _, file in ipairs(eslintFiles) do
-						local res = vim.fn.findfile(file, ".;")
-						if #res > 0 then
-							if options.debug then
-								print("Found tsconfig.json: " .. res)
-							end
-							workspace = vim.fn.getcwd() .. "/" .. res:gsub("/tsconfig.json", "")
-							break
+				for _, file in ipairs(rootFiles) do
+					local res = vim.fn.findfile(file, ".;")
+					if #res > 0 then
+						if plugin_options.debug then
+							print("Found tsconfig.json: " .. res)
 						end
+						workspace = vim.fn.getcwd() .. "/" .. res:gsub("/tsconfig.json", "")
+						break
 					end
-
-					if not workspace then
-						print("No tsconfig.json found")
-						return
-					end
-
-					-- since tsc gives relative paths from tsconfig.json we temporarily change the cwd to the workspace root
-					-- this is to support monorepos where there might be more than one tsconfig.json
-					-- and the tsconfig.json might be in a subdirectory (ie ./applications/app1/tsconfig.json)
-					local oldCwd = vim.fn.getcwd()
-					vim.fn.chdir(workspace)
-
-					if options.debug then
-						print("oldCwd: " .. oldCwd)
-						print("workspaceRoot: " .. workspace)
-						print("cwd after chdir: " .. vim.fn.getcwd())
-					end
-
-					-- using npx to use the project's typescript version and not depend on a global install
-					vim.api.nvim_command(":compiler tsc | setlocal makeprg=npx\\ tsc")
-					vim.api.nvim_command(":make")
-
-					-- change back to original cwd
-					vim.fn.chdir(oldCwd)
-					if options.debug then
-						print("oldCwd: " .. oldCwd)
-						print("workspaceRoot: " .. workspace)
-						print("cwd after changing back: " .. vim.fn.getcwd())
-					end
-
-					if not options.auto_open then
-						return
-					end
-
-					local quckfixEntries = vim.fn.getqflist()
-					if #quckfixEntries == 0 then
-						print("No typescript errors found")
-						return
-					end
-
-					for i = #quckfixEntries, 1, -1 do
-						if not quckfixEntries[i].valid then
-							table.remove(quckfixEntries, i)
-						end
-					end
-
-					if options.list == "quickfix" then
-						vim.api.nvim_command(":copen")
-					end
-
-					if options.list == "trouble" and require("trouble") then
-						require("trouble").open({ mode = "quickfix" })
-					end
-				end, { nargs = 0 })
-
-				if original then
-					original(client, bufnr)
 				end
-			end,
-		})
-	end
+
+				if not workspace then
+					print("No tsconfig.json found")
+					return
+				end
+
+				-- since tsc gives relative paths from tsconfig.json we temporarily change the cwd to the workspace root
+				-- this is to support monorepos where there might be more than one tsconfig.json
+				-- and the tsconfig.json might be in a subdirectory (ie ./applications/app1/tsconfig.json)
+				local oldCwd = vim.fn.getcwd()
+				vim.fn.chdir(workspace)
+
+				if plugin_options.debug then
+					print("oldCwd: " .. oldCwd)
+					print("workspaceRoot: " .. workspace)
+					print("cwd after chdir: " .. vim.fn.getcwd())
+				end
+
+				-- using npx to use the project's typescript version and not depend on a global install
+				vim.api.nvim_command(":compiler tsc | setlocal makeprg=npx\\ tsc")
+				vim.api.nvim_command(":make")
+
+				-- change back to original cwd
+				vim.fn.chdir(oldCwd)
+				if plugin_options.debug then
+					print("oldCwd: " .. oldCwd)
+					print("workspaceRoot: " .. workspace)
+					print("cwd after changing back: " .. vim.fn.getcwd())
+				end
+
+				if not plugin_options.auto_open then
+					return
+				end
+
+				local quckfixEntries = vim.fn.getqflist()
+				if #quckfixEntries == 0 then
+					print("No typescript errors found")
+					return
+				end
+
+				for i = #quckfixEntries, 1, -1 do
+					if not quckfixEntries[i].valid then
+						table.remove(quckfixEntries, i)
+					end
+				end
+
+				if plugin_options.list == "quickfix" then
+					vim.api.nvim_command(":copen")
+				end
+
+				if plugin_options.list == "trouble" and require("trouble") then
+					require("trouble").open({ mode = "quickfix" })
+				end
+			end, { nargs = 0 })
+
+			if original_attach then
+				original_attach(client, bufnr)
+			end
+		end,
+	})
 end
 
 return M
